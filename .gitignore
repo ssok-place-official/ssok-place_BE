@@ -39,4 +39,6 @@ out/
 # Spring
 application-*.properties
 application.properties
+application.yml
+application-*.yml
 *.env
