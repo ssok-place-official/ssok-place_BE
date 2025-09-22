@@ -9,8 +9,6 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
-// 공통 페이지 응답 DTO
-
 @JsonSerialize(using = PageDTO.Serializer.class)
 public class PageDTO<T> extends PageImpl<T> {
 
@@ -22,11 +20,13 @@ public class PageDTO<T> extends PageImpl<T> {
         return new PageDTO<>(page.getContent(), page.getPageable(), page.getTotalElements());
     }
 
-    @JsonComponent
-    @SuppressWarnings("unchecked")
+    // @JsonComponent 는 제거 (여기선 불필요)
     public static class Serializer extends JsonSerializer<PageDTO<?>>{
         @Override
-        public void serialize(PageDTO<?> value, com.fasterxml.jackson.core.JsonGenerator gen, com.fasterxml.jackson.databind.SerializerProvider serializers) throws java.io.IOException {
+        public void serialize(PageDTO<?> value,
+                              com.fasterxml.jackson.core.JsonGenerator gen,
+                              com.fasterxml.jackson.databind.SerializerProvider serializers) throws java.io.IOException {
+
             gen.writeStartObject();
             gen.writeObjectField("content", value.getContent());
             gen.writeNumberField("page", value.getNumber());
@@ -34,16 +34,6 @@ public class PageDTO<T> extends PageImpl<T> {
             gen.writeNumberField("totalElements", value.getTotalElements());
             gen.writeNumberField("totalPages", value.getTotalPages());
             gen.writeBooleanField("last", value.isLast());
-            gen.writeEndObject();
-
-            // content
-            gen.writeFieldName("content");
-            gen.writeStartArray();
-            for(Object content : value.getContent()){
-                gen.writeObject(content);
-            }
-            gen.writeEndArray();
-
             gen.writeEndObject();
         }
     }
