@@ -12,6 +12,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/friends")
@@ -37,5 +39,23 @@ public class FriendController {
             ) {
         var data = friendService.addFriend(principal.getUsername(), friendAddDTO.getFriendUserId());
         return CommonResponse.ok(data, "친구 요청 전송 성공");
+    }
+
+    @PostMapping("/respond")
+    public CommonResponse<FriendRequestDTO> respond(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam Long friendUserId,
+            @RequestParam boolean accept
+    ) {
+        var data = friendService.respondToRequest(principal.getUsername(), friendUserId, accept);
+        return CommonResponse.ok(data, accept ? "친구 요청 응답 성공" : "친구 요청 거절 성공");
+    }
+
+    @GetMapping("/requests")
+    public CommonResponse<List<FriendDTO>> pendingRequests(
+            @AuthenticationPrincipal UserDetails principal
+    ) {
+        var data = friendService.getPendingRequests(principal.getUsername());
+        return CommonResponse.ok(data, "친구 요청 목록 조회 성공");
     }
 }

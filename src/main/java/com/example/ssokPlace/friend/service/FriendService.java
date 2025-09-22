@@ -14,6 +14,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class FriendService {
@@ -64,6 +66,44 @@ public class FriendService {
         friendRepository.save(req);
 
         return new FriendRequestDTO("PENDING");
+    }
+
+    @Transactional
+    public FriendRequestDTO respondToRequest(String myEmail, Long friendUserId, boolean accept) {
+        User me = userRepository.findByEmail(myEmail)
+                .orElseThrow(() -> new ReportableError(HttpStatus.NOT_FOUND, "유저 정보를 찾을 수 없습니다."));
+        Friendship friendship = friendRepository.findBetweenUsers(me.getId(), friendUserId)
+                .orElseThrow(() -> new ReportableError(HttpStatus.NOT_FOUND, "친구 요청이 존재하지 않습니다."));
+
+        if (!"PENDING".equals(friendship.getStatus())) {
+            throw new ReportableError(HttpStatus.BAD_REQUEST, "이미 처리된 요청입니다.");
+        }
+
+        Friendship updated = Friendship.builder()
+                .id(friendship.getId())
+                .userA(friendship.getUserA())
+                .userB(friendship.getUserB())
+                .status(accept ? "ACCEPTED" : "REJECTED")
+                .createdAt(friendship.getCreatedAt())
+                .build();
+
+        friendRepository.save(updated);
+
+        return new FriendRequestDTO(updated.getStatus());
+    }
+    @Transactional
+    public List<FriendDTO> getPendingRequests(String myEmail) {
+        User me = userRepository.findByEmail(myEmail)
+                .orElseThrow(() -> new ReportableError(HttpStatus.NOT_FOUND, "유저 정보를 찾을 수 없습니다."));
+
+        List<Friendship> requests = friendRepository.findPendingRequests(me.getId());
+
+        return requests.stream()
+                .map(f -> {
+                    User other = f.getUserA().getId().equals(me.getId()) ? f.getUserB() : f.getUserA();
+                    return new FriendDTO(other.getId(), other.getNickname(), f.getStatus());
+                })
+                .toList();
     }
 
 }
