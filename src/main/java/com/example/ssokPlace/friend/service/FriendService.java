@@ -4,8 +4,8 @@ import com.example.ssokPlace.common.PageDTO;
 import com.example.ssokPlace.error.ReportableError;
 import com.example.ssokPlace.friend.dto.FriendDTO;
 import com.example.ssokPlace.friend.dto.FriendRequestDTO;
+import com.example.ssokPlace.friend.entity.Friendship;
 import com.example.ssokPlace.friend.repository.FriendRepository;
-import com.example.ssokPlace.friend.repository.FriendRequestRepository;
 import com.example.ssokPlace.user.entity.User;
 import com.example.ssokPlace.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 public class FriendService {
     private final UserRepository userRepository;
     private final FriendRepository friendRepository;
-    private final FriendRequestRepository friendRequestRepository;
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public PageDTO<FriendDTO> getFriends(String myEmail, String search, int page, int size) {
@@ -43,20 +42,28 @@ public class FriendService {
             throw new ReportableError(HttpStatus.BAD_REQUEST, "본인에게 친구 요청을 보낼 수 없습니다.");
         }
 
-        userRepository.findById(friendUserId)
+        User target = userRepository.findById(friendUserId)
                 .orElseThrow(() -> new ReportableError(HttpStatus.NOT_FOUND, "대상 유저를 찾을 수 없습니다."));
 
-        if (friendRepository.existsFriendship(me.getId(), friendUserId)) {
+        if (friendRepository.existsFriendship(me.getId(), target.getId())) {
             throw new ReportableError(HttpStatus.CONFLICT, "이미 친구 상태입니다.");
         }
-
-        if (friendRequestRepository.existPendingBetween(me.getId(), friendUserId)) {
+        if (friendRepository.existsPendingBetween(me.getId(), target.getId())) {
             throw new ReportableError(HttpStatus.CONFLICT, "이미 친구 요청이 진행 중입니다.");
         }
 
-        // 요청 생성
-        friendRequestRepository.createPending(me.getId(), friendUserId);
+        User a = me.getId() < target.getId() ? me : target;
+        User b = me.getId() < target.getId() ? target : me;
+
+        Friendship req = Friendship.builder()
+                .userA(a)
+                .userB(b)
+                .status("PENDING")
+                .createdAt(java.time.OffsetDateTime.now())
+                .build();
+        friendRepository.save(req);
 
         return new FriendRequestDTO("PENDING");
     }
+
 }
