@@ -2,11 +2,12 @@ package com.example.ssokPlace.places.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-
-import java.awt.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import org.locationtech.jts.geom.Point;
 
 @Entity
-@Table(name = "place")
+@Table(name = "places")
 @Getter
 @Builder
 @NoArgsConstructor
@@ -31,8 +32,8 @@ public class Place {
     @Column(columnDefinition = "json")
     private String externalRefs;
 
-    // 실제 좌표 공간 데이터를 공간 타입(Point)로 저장하는 MySQL Spatial 컬럼
-    // SRID 4236 = WGS84 좌표계
-    @Column(columnDefinition = "point SRID 4326 not null")
+    @JdbcTypeCode(SqlTypes.GEOMETRY)
+    @Column(name = "ego", columnDefinition = "POINT SRID 4326 NOT NULL", nullable = false)
     private Point ego;
+
 }
