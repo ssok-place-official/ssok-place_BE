@@ -15,6 +15,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.PrecisionModel;
+import org.locationtech.jts.geom.impl.PackedCoordinateSequenceFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -38,33 +43,44 @@ public class PlaceService {
 
     private final ObjectMapper om = new ObjectMapper();
 
+    private static final GeometryFactory GF =
+            new GeometryFactory(new PrecisionModel(), 4326,
+                    PackedCoordinateSequenceFactory.DOUBLE_FACTORY);
+
     @Transactional
     public PlaceDTO createOrAttach(String myEmail, PlaceCreateReq req){
         User me = userRepository.findByEmail(myEmail)
                 .orElseThrow(() -> new ReportableError(HttpStatus.NOT_FOUND, "유저 정보를 찾을 수 없습니다."));
 
-        Place place = null;
-        if(req.getNaverPlaceId()!=null && !req.getNaverPlaceId().isBlank()){
-            place = placeRepository.findByNaverPlaceId(req.getNaverPlaceId()).orElse(null);
-        }
-
-        if(place == null && placeRepository.existsNearby(req.getLat(), req.getLng(), 10)){
-            throw new ReportableError(HttpStatus.CONFLICT, "이미 등록된 장소가 있습니다.");
-        }
-
+        // 1) 입력 필수 검증을 먼저!
         if (req.getName()==null || req.getName().isBlank()
                 || req.getLat()==null || req.getLng()==null) {
             throw new ReportableError(HttpStatus.BAD_REQUEST, "name, lat, lng는 필수입니다.");
         }
-
         if (req.getMemo()==null && (req.getTags()==null || req.getTags().isEmpty())) {
             throw new ReportableError(HttpStatus.BAD_REQUEST, "변경할 필드가 없습니다.");
         }
 
-        if(place==null){
+        // 2) 네이버 플레이스ID로 먼저 attach 시도
+        Place place = null;
+        if (req.getNaverPlaceId()!=null && !req.getNaverPlaceId().isBlank()){
+            place = placeRepository.findByNaverPlaceId(req.getNaverPlaceId()).orElse(null);
+        }
+
+        // 3) 좌표 반경 내 중복 체크 (필수값 검증 후!)
+        final int RADIUS_METERS = 10;
+        if (place == null && placeRepository.countNearby(req.getLat(), req.getLng(), RADIUS_METERS) > 0L) {
+            throw new ReportableError(HttpStatus.CONFLICT, "이미 등록된 장소가 있습니다.");
+        }
+
+        // 4) 없으면 생성
+        if (place == null) {
             Map<String, Object> refs = new LinkedHashMap<>();
             if (req.getNaverPlaceId() != null) refs.put("naver_place_id", req.getNaverPlaceId());
             if (req.getPlaceUrl() != null) refs.put("place_url", req.getPlaceUrl());
+
+            Point pt = GF.createPoint(new Coordinate(req.getLng(), req.getLat()));
+            pt.setSRID(4326);
 
             place = Place.builder()
                     .name(req.getName())
@@ -72,13 +88,16 @@ public class PlaceService {
                     .lat(req.getLat())
                     .lng(req.getLng())
                     .externalRefs(refs.isEmpty()? null : writeJson(refs))
+                    .ego(pt) // ✅ 필수: ego 세팅
                     .build();
+
             place = placeRepository.save(place);
         }
 
         Long placeId = place.getId();
 
-        UserPlace up = userPlaceRepository.findByUserIdAndPlaceId(me.getId(), place.getId())
+        // 5) UserPlace upsert
+        UserPlace up = userPlaceRepository.findByUserIdAndPlaceId(me.getId(), placeId)
                 .orElseGet(() -> UserPlace.builder()
                         .userId(me.getId())
                         .placeId(placeId)
@@ -118,6 +137,7 @@ public class PlaceService {
                 .createdAt(Instant.now())
                 .build();
     }
+
 
     @Transactional(readOnly = true)
     public PlaceDTO getDetail(String myEmail, Long placeId, boolean includeInsight){
@@ -174,7 +194,7 @@ public class PlaceService {
 
         var ids = pageRes.getContent().stream().map(Place::getId).toList();
         Map<Long, String> emojiById = placeInsightRepository.findAllById(ids).stream()
-                .collect(Collectors.toMap(PlaceInsight::getId, PlaceInsight::getEmoji));
+                .collect(Collectors.toMap(PlaceInsight::getPlaceId, PlaceInsight::getEmoji));
 
         var mapped = pageRes.map(p -> PlacePinDTO.builder()
                 .id(p.getId())
