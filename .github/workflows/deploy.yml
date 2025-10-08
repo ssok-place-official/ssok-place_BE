@@ -2,9 +2,9 @@ name: CI/CD - ssok backend
 
 on:
   pull_request:
-    branches: [ "main" ]   # PR에서는 빌드만
+    branches: [ "main" ]   # PR: 빌드만 수행
   push:
-    branches: [ "main" ]   # main에 머지되면 빌드+배포
+    branches: [ "main" ]   # main 푸시(머지) 시: 빌드 + 배포
   workflow_dispatch:
 
 jobs:
@@ -21,20 +21,21 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      # Gradle 빌드
+      # Gradle 빌드 (gradlew가 있을 때)
       - name: Build with Gradle
         if: ${{ hashFiles('**/gradlew') != '' }}
         run: |
           chmod +x ./gradlew
           ./gradlew clean build -x test
-      # Maven 빌드
+
+      # Maven 빌드 (mvnw가 있을 때)
       - name: Build with Maven
         if: ${{ hashFiles('**/mvnw') != '' }}
         run: |
           chmod +x ./mvnw
           ./mvnw -B -DskipTests package
 
-      # 어떤 JAR이 생겼는지 먼저 출력(디버깅에 매우 유용)
+      # 디버깅용: 생성된 JAR 경로 출력
       - name: List potential JARs
         run: |
           echo "=== Gradle build/libs ==="
@@ -46,12 +47,14 @@ jobs:
       - name: Collect JARs for artifact
         run: |
           mkdir -p dist
-          # Gradle 실행 JAR 수집 (*-plain.jar 제외)
+          # Gradle
           find . -path "*/build/libs/*.jar" -not -name "*plain*.jar" -exec cp {} dist/ \; || true
-          # Maven 실행 JAR 수집 (sources/javadoc 제외)
+          # Maven
           find . -path "*/target/*.jar" -not -name "*sources*.jar" -not -name "*javadoc*.jar" -exec cp {} dist/ \; || true
+
           echo "Collected in dist/:"
           ls -l dist || true
+
           if [ -z "$(ls -A dist 2>/dev/null)" ]; then
             echo "No JARs collected. Check your build settings."; exit 1
           fi
@@ -91,6 +94,24 @@ jobs:
           echo "jar_path=$JAR_PATH" >> $GITHUB_OUTPUT
           echo "Picked: $JAR_PATH"
 
+      # 서버 디렉터리 선준비(+ 과거 오염 디렉터리 정리)
+      - name: Prepare server dirs
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            mkdir -p /home/ubuntu/app/releases
+            # 과거 잘못 업로드된 디렉터리 정리 (예: releases/app-dist)
+            if [ -d /home/ubuntu/app/releases/app-dist ]; then
+              rm -rf /home/ubuntu/app/releases/app-dist
+            fi
+            chown -R $USER:$USER /home/ubuntu/app
+
+      # 정확한 파일명으로 업로드(디렉터리 글롭 사용 금지)
       - name: Copy JAR to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -99,7 +120,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           source: ${{ steps.pick.outputs.jar_path }}
-          target: /home/ubuntu/app/releases/
+          target: /home/ubuntu/app/releases/${{ github.sha }}.jar
 
       - name: Restart service
         uses: appleboy/ssh-action@v1.2.0
@@ -109,21 +130,30 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
-            set -e
+            set -euo pipefail
             cd /home/ubuntu/app
-            # 가장 최근 업로드된 JAR를 current.jar로 연결
-            LATEST_JAR=$(ls -t releases/*.jar | head -n 1)
-            ln -sfn "$LATEST_JAR" current.jar
+            JAR="releases/${{ github.sha }}.jar"
+            if [ ! -f "$JAR" ]; then
+              echo "JAR not found at $JAR"
+              echo "Tree:"
+              ls -R .
+              exit 1
+            fi
+
+            ln -sfn "$JAR" current.jar
             sudo systemctl daemon-reload
             sudo systemctl restart ${{ secrets.SERVICE_NAME }}
-            # 헬스체크 (Actuator 권장, 없으면 "/"로 변경)
+
+            # 헬스체크 (Actuator 권장, 없으면 "/"로 교체)
+            HEALTH_URL="http://127.0.0.1:8080/actuator/health"
             for i in {1..30}; do
-              code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/actuator/health || true)
+              code=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || true)
               if [ "$code" = "200" ]; then
                 echo "Health OK"; exit 0
               fi
               sleep 1
             done
+
             echo "Health check failed"
             journalctl -u ${{ secrets.SERVICE_NAME }} --no-pager -n 200
             exit 1
