@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ "main" ]     # PR에서는 빌드만
   push:
-    branches: [ "main" ]     # main에 머지되면 빌드 + 배포
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
