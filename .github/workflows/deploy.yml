@@ -2,9 +2,9 @@ name: CI/CD - ssok backend
 
 on:
   pull_request:
-    branches: [ "main" ]   # PR: 빌드만 수행
+    branches: [ "main" ]     # PR에서는 빌드만
   push:
-    branches: [ "main" ]   # main 푸시(머지) 시: 빌드 + 배포
+    branches: [ "main" ]     # main에 머지되면 빌드 + 배포
   workflow_dispatch:
 
 jobs:
@@ -21,21 +21,21 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      # Gradle 빌드 (gradlew가 있을 때)
+      # Gradle 빌드 (gradlew가 있으면)
       - name: Build with Gradle
         if: ${{ hashFiles('**/gradlew') != '' }}
         run: |
           chmod +x ./gradlew
           ./gradlew clean build -x test
 
-      # Maven 빌드 (mvnw가 있을 때)
+      # Maven 빌드 (mvnw가 있으면)
       - name: Build with Maven
         if: ${{ hashFiles('**/mvnw') != '' }}
         run: |
           chmod +x ./mvnw
           ./mvnw -B -DskipTests package
 
-      # 디버깅용: 생성된 JAR 경로 출력
+      # 어떤 JAR이 생겼는지 리스트(디버깅용)
       - name: List potential JARs
         run: |
           echo "=== Gradle build/libs ==="
@@ -43,18 +43,17 @@ jobs:
           echo "=== Maven target ==="
           find . -path "*/target/*.jar" -print || true
 
-      # 실행 가능한 JAR만 dist/로 수집 (plain/sources/javadoc 제외)
+      # 실행가능 JAR만 dist/에 모으기 (plain/sources/javadoc 제외)
       - name: Collect JARs for artifact
         run: |
+          set -e
           mkdir -p dist
           # Gradle
           find . -path "*/build/libs/*.jar" -not -name "*plain*.jar" -exec cp {} dist/ \; || true
           # Maven
           find . -path "*/target/*.jar" -not -name "*sources*.jar" -not -name "*javadoc*.jar" -exec cp {} dist/ \; || true
-
           echo "Collected in dist/:"
           ls -l dist || true
-
           if [ -z "$(ls -A dist 2>/dev/null)" ]; then
             echo "No JARs collected. Check your build settings."; exit 1
           fi
@@ -87,14 +86,20 @@ jobs:
         id: pick
         shell: bash
         run: |
+          set -e
           JAR_PATH=$(ls app-dist/*.jar | head -n 1)
-          if [ -z "$JAR_PATH" ]; then
-            echo "No JAR found in app-dist"; exit 1
-          fi
-          echo "jar_path=$JAR_PATH" >> $GITHUB_OUTPUT
+          [ -z "$JAR_PATH" ] && echo "No JAR found in app-dist" && exit 1
           echo "Picked: $JAR_PATH"
+          echo "jar_path=$JAR_PATH" >> $GITHUB_OUTPUT
 
-      # 서버 디렉터리 선준비(+ 과거 오염 디렉터리 정리)
+      # ✅ 업로드용 단일 파일명으로 확정(폴더 업로드 방지)
+      - name: Rename for upload
+        run: |
+          set -e
+          cp "${{ steps.pick.outputs.jar_path }}" app-dist/app.jar
+          ls -l app-dist/app.jar
+
+      # 서버 폴더 준비 및 과거 오염 디렉터리 정리
       - name: Prepare server dirs
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -105,13 +110,11 @@ jobs:
           script: |
             set -e
             mkdir -p /home/ubuntu/app/releases
-            # 과거 잘못 업로드된 디렉터리 정리 (예: releases/app-dist)
-            if [ -d /home/ubuntu/app/releases/app-dist ]; then
-              rm -rf /home/ubuntu/app/releases/app-dist
-            fi
+            # 과거에 생긴 잘못된 하위폴더 제거 (예: releases/app-dist, releases/<SHA>.jar/...)
+            find /home/ubuntu/app/releases -maxdepth 2 -type d -name "app-dist" -exec rm -rf {} + || true
             chown -R $USER:$USER /home/ubuntu/app
 
-      # 정확한 파일명으로 업로드(디렉터리 글롭 사용 금지)
+      # ✅ 정확한 파일 하나만 업로드(디렉터리 아님)
       - name: Copy JAR to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -119,11 +122,13 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          source: ${{ steps.pick.outputs.jar_path }}
+          source: app-dist/app.jar
           target: /home/ubuntu/app/releases/${{ github.sha }}.jar
 
       - name: Restart service
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          HEALTH_URL: http://127.0.0.1:8080/actuator/health
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -133,10 +138,23 @@ jobs:
             set -euo pipefail
             cd /home/ubuntu/app
             JAR="releases/${{ github.sha }}.jar"
+
+            # ⚠️ 혹시라도 폴더로 올라왔으면 내부 jar 찾아서 파일로 교정
+            if [ -d "$JAR" ]; then
+              echo "WARN: $JAR is a directory. Searching inner jar..."
+              INNER=$(find "$JAR" -maxdepth 2 -type f -name "*.jar" | head -n 1 || true)
+              if [ -n "$INNER" ]; then
+                cp "$INNER" "${JAR}.fixed"
+                rm -rf "$JAR"
+                mv "${JAR}.fixed" "$JAR"
+              else
+                echo "No inner jar found under $JAR"; ls -R releases; exit 1
+              fi
+            fi
+
             if [ ! -f "$JAR" ]; then
               echo "JAR not found at $JAR"
-              echo "Tree:"
-              ls -R .
+              ls -R releases
               exit 1
             fi
 
@@ -144,13 +162,10 @@ jobs:
             sudo systemctl daemon-reload
             sudo systemctl restart ${{ secrets.SERVICE_NAME }}
 
-            # 헬스체크 (Actuator 권장, 없으면 "/"로 교체)
-            HEALTH_URL="http://127.0.0.1:8080/actuator/health"
+            # 헬스체크 (Actuator 권장. 없으면 "/" 등으로 교체)
             for i in {1..30}; do
               code=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || true)
-              if [ "$code" = "200" ]; then
-                echo "Health OK"; exit 0
-              fi
+              [ "$code" = "200" ] && echo "Health OK" && exit 0
               sleep 1
             done
 
