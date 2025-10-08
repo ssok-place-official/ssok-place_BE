@@ -2,7 +2,7 @@ name: CI/CD - ssok backend
 
 on:
   pull_request:
-    branches: [ "main" ]     # PR에서는 빌드만
+    branches: [ "main" ]
   push:
     branches: [ "main" ]
   workflow_dispatch:
@@ -21,21 +21,18 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      # Gradle 빌드 (gradlew가 있으면)
       - name: Build with Gradle
         if: ${{ hashFiles('**/gradlew') != '' }}
         run: |
           chmod +x ./gradlew
           ./gradlew clean build -x test
 
-      # Maven 빌드 (mvnw가 있으면)
       - name: Build with Maven
         if: ${{ hashFiles('**/mvnw') != '' }}
         run: |
           chmod +x ./mvnw
           ./mvnw -B -DskipTests package
 
-      # 어떤 JAR이 생겼는지 리스트(디버깅용)
       - name: List potential JARs
         run: |
           echo "=== Gradle build/libs ==="
@@ -43,14 +40,11 @@ jobs:
           echo "=== Maven target ==="
           find . -path "*/target/*.jar" -print || true
 
-      # 실행가능 JAR만 dist/에 모으기 (plain/sources/javadoc 제외)
       - name: Collect JARs for artifact
         run: |
           set -e
           mkdir -p dist
-          # Gradle
           find . -path "*/build/libs/*.jar" -not -name "*plain*.jar" -exec cp {} dist/ \; || true
-          # Maven
           find . -path "*/target/*.jar" -not -name "*sources*.jar" -not -name "*javadoc*.jar" -exec cp {} dist/ \; || true
           echo "Collected in dist/:"
           ls -l dist || true
@@ -92,14 +86,12 @@ jobs:
           echo "Picked: $JAR_PATH"
           echo "jar_path=$JAR_PATH" >> $GITHUB_OUTPUT
 
-      # ✅ 업로드용 단일 파일명으로 확정(폴더 업로드 방지)
       - name: Rename for upload
         run: |
           set -e
           cp "${{ steps.pick.outputs.jar_path }}" app-dist/app.jar
           ls -l app-dist/app.jar
 
-      # 서버 폴더 준비 및 과거 오염 디렉터리 정리
       - name: Prepare server dirs
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -110,11 +102,13 @@ jobs:
           script: |
             set -e
             mkdir -p /home/ubuntu/app/releases
-            # 과거에 생긴 잘못된 하위폴더 제거 (예: releases/app-dist, releases/<SHA>.jar/ ...)
-            find /home/ubuntu/app/releases -maxdepth 2 -type d -name "app-dist" -exec rm -rf {} + || true
+            # 혹시 남아있는 폴더 구조 정리
+            rm -rf /home/ubuntu/app/releases/app-dist || true
+            # 이전 파일 정리(옵션)
+            # rm -f /home/ubuntu/app/releases/app.jar || true
             chown -R $USER:$USER /home/ubuntu/app
 
-      # ✅ 정확한 파일 하나만 업로드(디렉터리 아님) → target은 디렉터리로!
+      # ✅ strip_components: 1 로 상위 폴더(app-dist) 제거 후, target 디렉터리에 "app.jar"로 업로드됨
       - name: Copy JAR to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -124,18 +118,21 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           source: app-dist/app.jar
           target: /home/ubuntu/app/releases/
+          strip_components: 1
+          overwrite: true
 
       - name: Restart service
         uses: appleboy/ssh-action@v1.2.0
         env:
           HEALTH_URL: http://127.0.0.1:8080/actuator/health
+          BASIC_USER: ${{ secrets.BASIC_USER }} # 선택
+          BASIC_PASS: ${{ secrets.BASIC_PASS }} # 선택
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          # 전달할 환경변수 나열 (set -u 대비)
-          envs: HEALTH_URL
+          envs: HEALTH_URL,BASIC_USER,BASIC_PASS
           script: |
             set -Eeuo pipefail
             APP_DIR="/home/ubuntu/app"
@@ -159,9 +156,14 @@ jobs:
             sudo systemctl daemon-reload || true
             sudo systemctl restart "${{ secrets.SERVICE_NAME }}"
 
+            CURL_OPTS=("-s" "-o" "/dev/null" "-w" "%{http_code}")
+            if [ -n "${BASIC_USER:-}" ] && [ -n "${BASIC_PASS:-}" ]; then
+              CURL_OPTS+=("-u" "${BASIC_USER}:${BASIC_PASS}")
+            fi
+
             echo "[INFO] Waiting for health..."
             for i in {1..30}; do
-              code=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || true)
+              code=$(curl "${CURL_OPTS[@]}" "$HEALTH_URL" || true)
               if [ "$code" = "200" ]; then
                 echo "[OK] Healthcheck passed"
                 exit 0
