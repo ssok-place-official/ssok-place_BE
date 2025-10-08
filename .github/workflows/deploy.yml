@@ -110,11 +110,11 @@ jobs:
           script: |
             set -e
             mkdir -p /home/ubuntu/app/releases
-            # 과거에 생긴 잘못된 하위폴더 제거 (예: releases/app-dist, releases/<SHA>.jar/...)
+            # 과거에 생긴 잘못된 하위폴더 제거 (예: releases/app-dist, releases/<SHA>.jar/ ...)
             find /home/ubuntu/app/releases -maxdepth 2 -type d -name "app-dist" -exec rm -rf {} + || true
             chown -R $USER:$USER /home/ubuntu/app
 
-      # ✅ 정확한 파일 하나만 업로드(디렉터리 아님)
+      # ✅ 정확한 파일 하나만 업로드(디렉터리 아님) → target은 디렉터리로!
       - name: Copy JAR to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -123,7 +123,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           source: app-dist/app.jar
-          target: /home/ubuntu/app/releases/${{ github.sha }}.jar
+          target: /home/ubuntu/app/releases/
 
       - name: Restart service
         uses: appleboy/ssh-action@v1.2.0
@@ -134,41 +134,42 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
+          # 전달할 환경변수 나열 (set -u 대비)
+          envs: HEALTH_URL
           script: |
-            set -euo pipefail
-            cd /home/ubuntu/app
-            JAR="releases/${{ github.sha }}.jar"
+            set -Eeuo pipefail
+            APP_DIR="/home/ubuntu/app"
+            REL_DIR="$APP_DIR/releases"
+            UPLOADED="$REL_DIR/app.jar"
+            VERSIONED="$REL_DIR/${{ github.sha }}.jar"
 
-            # ⚠️ 혹시라도 폴더로 올라왔으면 내부 jar 찾아서 파일로 교정
-            if [ -d "$JAR" ]; then
-              echo "WARN: $JAR is a directory. Searching inner jar..."
-              INNER=$(find "$JAR" -maxdepth 2 -type f -name "*.jar" | head -n 1 || true)
-              if [ -n "$INNER" ]; then
-                cp "$INNER" "${JAR}.fixed"
-                rm -rf "$JAR"
-                mv "${JAR}.fixed" "$JAR"
-              else
-                echo "No inner jar found under $JAR"; ls -R releases; exit 1
-              fi
-            fi
-
-            if [ ! -f "$JAR" ]; then
-              echo "JAR not found at $JAR"
-              ls -R releases
+            if [ ! -f "$UPLOADED" ]; then
+              echo "[ERROR] Uploaded jar not found: $UPLOADED"
+              ls -l "$REL_DIR" || true
               exit 1
             fi
 
-            ln -sfn "$JAR" current.jar
-            sudo systemctl daemon-reload
-            sudo systemctl restart ${{ secrets.SERVICE_NAME }}
+            echo "[INFO] Renaming to versioned jar: $VERSIONED"
+            mv -f "$UPLOADED" "$VERSIONED"
 
-            # 헬스체크 (Actuator 권장. 없으면 "/" 등으로 교체)
+            echo "[INFO] Updating current.jar symlink"
+            ln -sfn "$VERSIONED" "$APP_DIR/current.jar"
+
+            echo "[INFO] Restarting service: ${{ secrets.SERVICE_NAME }}"
+            sudo systemctl daemon-reload || true
+            sudo systemctl restart "${{ secrets.SERVICE_NAME }}"
+
+            echo "[INFO] Waiting for health..."
             for i in {1..30}; do
               code=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || true)
-              [ "$code" = "200" ] && echo "Health OK" && exit 0
-              sleep 1
+              if [ "$code" = "200" ]; then
+                echo "[OK] Healthcheck passed"
+                exit 0
+              fi
+              sleep 2
             done
 
-            echo "Health check failed"
-            journalctl -u ${{ secrets.SERVICE_NAME }} --no-pager -n 200
+            echo "[ERROR] Healthcheck failed"
+            sudo systemctl status "${{ secrets.SERVICE_NAME }}" --no-pager || true
+            sudo journalctl -u "${{ secrets.SERVICE_NAME }}" -n 200 --no-pager || true
             exit 1
