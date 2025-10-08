@@ -1,8 +1,10 @@
 name: CI/CD - ssok backend
 
 on:
+  pull_request:
+    branches: [ "main" ]   # PR에서는 빌드만
   push:
-    branches: [ "main" ]
+    branches: [ "main" ]   # main에 머지되면 빌드+배포
   workflow_dispatch:
 
 jobs:
@@ -19,27 +21,50 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
+      # Gradle 빌드
       - name: Build with Gradle
         if: ${{ hashFiles('**/gradlew') != '' }}
         run: |
           chmod +x ./gradlew
           ./gradlew clean build -x test
+      # Maven 빌드
       - name: Build with Maven
         if: ${{ hashFiles('**/mvnw') != '' }}
         run: |
           chmod +x ./mvnw
           ./mvnw -B -DskipTests package
 
+      # 어떤 JAR이 생겼는지 먼저 출력(디버깅에 매우 유용)
+      - name: List potential JARs
+        run: |
+          echo "=== Gradle build/libs ==="
+          find . -path "*/build/libs/*.jar" -print || true
+          echo "=== Maven target ==="
+          find . -path "*/target/*.jar" -print || true
+
+      # 실행 가능한 JAR만 dist/로 수집 (plain/sources/javadoc 제외)
+      - name: Collect JARs for artifact
+        run: |
+          mkdir -p dist
+          # Gradle 실행 JAR 수집 (*-plain.jar 제외)
+          find . -path "*/build/libs/*.jar" -not -name "*plain*.jar" -exec cp {} dist/ \; || true
+          # Maven 실행 JAR 수집 (sources/javadoc 제외)
+          find . -path "*/target/*.jar" -not -name "*sources*.jar" -not -name "*javadoc*.jar" -exec cp {} dist/ \; || true
+          echo "Collected in dist/:"
+          ls -l dist || true
+          if [ -z "$(ls -A dist 2>/dev/null)" ]; then
+            echo "No JARs collected. Check your build settings."; exit 1
+          fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app
-          path: |
-            **/build/libs/*.jar
-            **/target/*.jar
+          path: dist/*.jar
           if-no-files-found: error
 
   deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: build
     environment: production
@@ -50,12 +75,19 @@ jobs:
           name: app
           path: app-dist
 
+      - name: Inspect downloaded files
+        run: |
+          echo "Downloaded to app-dist:"
+          ls -l app-dist
+
       - name: Pick JAR
         id: pick
         shell: bash
         run: |
-          JAR_PATH=$(ls app-dist/**/*.jar app-dist/*.jar | head -n 1)
-          [ -z "$JAR_PATH" ] && echo "No JAR found" && exit 1
+          JAR_PATH=$(ls app-dist/*.jar | head -n 1)
+          if [ -z "$JAR_PATH" ]; then
+            echo "No JAR found in app-dist"; exit 1
+          fi
           echo "jar_path=$JAR_PATH" >> $GITHUB_OUTPUT
           echo "Picked: $JAR_PATH"
 
@@ -67,8 +99,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           source: ${{ steps.pick.outputs.jar_path }}
-          target: /home/ubuntu/app/releases/${{ github.sha }}.jar
-          strip_components: 1
+          target: /home/ubuntu/app/releases/
 
       - name: Restart service
         uses: appleboy/ssh-action@v1.2.0
@@ -80,14 +111,19 @@ jobs:
           script: |
             set -e
             cd /home/ubuntu/app
-            ln -sfn releases/${{ github.sha }}.jar current.jar
+            # 가장 최근 업로드된 JAR를 current.jar로 연결
+            LATEST_JAR=$(ls -t releases/*.jar | head -n 1)
+            ln -sfn "$LATEST_JAR" current.jar
+            sudo systemctl daemon-reload
             sudo systemctl restart ${{ secrets.SERVICE_NAME }}
-            # 헬스체크: Actuator 있으면 /actuator/health 권장
+            # 헬스체크 (Actuator 권장, 없으면 "/"로 변경)
             for i in {1..30}; do
               code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/actuator/health || true)
-              [ "$code" = "200" ] && echo "Health OK" && exit 0
+              if [ "$code" = "200" ]; then
+                echo "Health OK"; exit 0
+              fi
               sleep 1
             done
             echo "Health check failed"
-            journalctl -u ${{ secrets.SERVICE_NAME }} --no-pager -n 120
+            journalctl -u ${{ secrets.SERVICE_NAME }} --no-pager -n 200
             exit 1
