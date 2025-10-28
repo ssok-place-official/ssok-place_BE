@@ -135,6 +135,7 @@ public class PlaceService {
                 .memo(up.getMemo())
                 .tags(readTags(up.getTags()))
                 .createdAt(Instant.now())
+                .coverUrl(place.getCoverUrl())
                 .build();
     }
 
@@ -170,6 +171,7 @@ public class PlaceService {
                 .memo(up==null? null : up.getMemo())
                 .tags(up==null? List.of() : readTags(up.getTags()))
                 .insight(insightDTO)
+                .coverUrl(p.getCoverUrl())
                 .build();
     }
 
@@ -205,6 +207,7 @@ public class PlaceService {
                 .emoji(emojiById.get(p.getId()))
                 .distanceM((int)Math.round(
                         haversineMeters(q.getCenterLat(), q.getCenterLng(), p.getLat(), p.getLng())))
+                .coverUrl(p.getCoverUrl())
                 .build());
 
         return PageDTO.of(mapped);

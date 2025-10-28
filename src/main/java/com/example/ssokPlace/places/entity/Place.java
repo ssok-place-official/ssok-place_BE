@@ -36,4 +36,7 @@ public class Place {
     @Column(name = "ego", columnDefinition = "POINT SRID 4326 NOT NULL", nullable = false)
     private Point ego;
 
+    @Column(name = "cover_url")
+    private String coverUrl;
+
 }

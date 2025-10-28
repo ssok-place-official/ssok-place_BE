@@ -17,4 +17,5 @@ public class PlacePinDTO {
     private Boolean isClosed;
     private String emoji;
     private Integer distanceM;
+    private String coverUrl;
 }
