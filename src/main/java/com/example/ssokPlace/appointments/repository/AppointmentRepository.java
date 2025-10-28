@@ -11,7 +11,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
-    Optional<Appointment> findByPublicId(String publicId);
+    Optional<Appointment> findByPublicId(Long publicId);
 
     @Query("""
         select a from Appointment a

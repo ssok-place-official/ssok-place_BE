@@ -7,15 +7,15 @@ import java.time.Instant;
 import java.util.List;
 
 public class AppointmentDetailResponse {
-    private final String id;
+    private final Long id;
     private final String title;
-    private final String placeId;
+    private final Long placeId;
     private final Instant startAt;
     private final AppointmentsStatus status;
     private final List<MemberDto> members;
 
     @JsonCreator
-    public AppointmentDetailResponse(String id, String title, String placeId, Instant startAt, AppointmentsStatus status, List<MemberDto> members) {
+    public AppointmentDetailResponse(Long id, String title, Long placeId, Instant startAt, AppointmentsStatus status, List<MemberDto> members) {
         this.id = id;
         this.title = title;
         this.placeId = placeId;
@@ -24,13 +24,13 @@ public class AppointmentDetailResponse {
         this.members = members;
     }
 
-    public String getId() {
+    public Long getId() {
         return id;
     }
     public String getTitle() {
         return title;
     }
-    public String getPlaceId() {
+    public Long getPlaceId() {
         return placeId;
     }
     public Instant getStartAt() {

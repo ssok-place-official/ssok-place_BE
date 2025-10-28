@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface AppointmentMemberRepository extends JpaRepository<AppointmentMember, Long> {
-    Optional<AppointmentMember> findByAppointment_PublicIdAndUser_Id(String apptPublicId, Long userId);
+    Optional<AppointmentMember> findByAppointment_PublicIdAndUser_Id(Long apptPublicId, Long userId);
 }

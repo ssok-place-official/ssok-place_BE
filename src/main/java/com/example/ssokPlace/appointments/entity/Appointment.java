@@ -22,7 +22,7 @@ public class Appointment {
     private Long id;
 
     @Column(name="public_id", nullable = false)
-    private String publicId;
+    private Long publicId;
 
     @Column(name="title", nullable = false)
     private String title;
@@ -34,7 +34,7 @@ public class Appointment {
     private Instant startAt;
 
     @Column(name = "place_id")
-    private String placeId;
+    private Long placeId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
@@ -43,7 +43,7 @@ public class Appointment {
     @OneToMany(mappedBy = "appointment", cascade = CascadeType.ALL, orphanRemoval = true)
     private final List<AppointmentMember> members = new ArrayList<>();
 
-    private Appointment(String publicId, String title, String note, String placeId, Instant startAt, AppointmentsStatus status) {
+    private Appointment(Long publicId, String title, String note, Long placeId, Instant startAt, AppointmentsStatus status) {
         this.publicId = publicId;
         this.title = title;
         this.note = note;
@@ -52,7 +52,7 @@ public class Appointment {
         this.status = AppointmentsStatus.PROPOSED;
     }
 
-    public static Appointment create(String publicId, String title, String note, String placeId, Instant startAt, User host) {
+    public static Appointment create(Long publicId, String title, String note, Long placeId, Instant startAt, User host) {
         var appt = new Appointment(publicId, title, note, placeId, startAt, AppointmentsStatus.PROPOSED);
         appt.addMember(host, MemberRole.HOST, RsvpStatus.ACCEPTED);
         return appt;
