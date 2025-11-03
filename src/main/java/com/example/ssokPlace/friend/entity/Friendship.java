@@ -79,11 +79,6 @@ public class Friendship {
         this.updatedAt = OffsetDateTime.now();
     }
 
-    public void block() {
-        this.status = FriendshipStatus.BLOCKED;
-        this.updatedAt = OffsetDateTime.now();
-    }
-
     public void markPinnedFor(Long viewerId, boolean pinned) {
         if (viewerId.equals(userA.getId())) this.aPinned = pinned;
         else if (viewerId.equals(userB.getId())) this.bPinned = pinned;
@@ -105,21 +100,8 @@ public class Friendship {
         this.updatedAt = OffsetDateTime.now();
     }
 
-    public boolean isPinnedBy(Long viewerId) {
-        return viewerId.equals(userA.getId()) ? aPinned : bPinned;
-    }
-    public boolean isMutedBy(Long viewerId) {
-        return viewerId.equals(userA.getId()) ? aMuted : bMuted;
-    }
-    public boolean isShareMyPlacesBy(Long ownerId) {
-        return ownerId.equals(userA.getId()) ? aShareMyPlaces : bShareMyPlaces;
-    }
-
     public User otherOf(Long meId) {
         return meId.equals(userA.getId()) ? userB : userA;
-    }
-    public boolean contains(Long id) {
-        return id.equals(userA.getId()) || id.equals(userB.getId());
     }
 
     private void ensurePending() {

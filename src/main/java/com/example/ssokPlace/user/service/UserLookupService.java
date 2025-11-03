@@ -2,7 +2,6 @@ package com.example.ssokPlace.user.service;
 
 import com.example.ssokPlace.error.ReportableError;
 import com.example.ssokPlace.friend.entity.Friendship;
-import com.example.ssokPlace.friend.entity.FriendshipStatus;
 import com.example.ssokPlace.friend.repository.FriendRepository;
 import com.example.ssokPlace.user.dto.UserLookupDTO;
 import com.example.ssokPlace.user.entity.User;
