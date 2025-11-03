@@ -1,11 +1,9 @@
 package com.example.ssokPlace.user.controller;
 
 import com.example.ssokPlace.common.CommonResponse;
-import com.example.ssokPlace.user.dto.LoginDTO;
-import com.example.ssokPlace.user.dto.LoginResDTO;
-import com.example.ssokPlace.user.dto.MyInfoDTO;
-import com.example.ssokPlace.user.dto.SignupDTO;
+import com.example.ssokPlace.user.dto.*;
 import com.example.ssokPlace.user.entity.User;
+import com.example.ssokPlace.user.service.UserLookupService;
 import com.example.ssokPlace.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
+    private final UserLookupService userLookupService;
 
     @PostMapping("/signUp")
     public CommonResponse<MyInfoDTO> signUp(@Valid @RequestBody SignupDTO dto){
@@ -48,5 +47,14 @@ public class UserController {
 
         userService.logout(principal != null ? principal.getUsername() : null);
         return CommonResponse.ok(null, "로그아웃 성공");
+    }
+
+    @GetMapping("/lookup")
+    public CommonResponse<UserLookupDTO> lookup(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam("friendId") Long friendId
+    ) {
+        var data = userLookupService.lookup(principal.getUsername(), friendId);
+        return CommonResponse.ok(data, "조회 성공");
     }
 }
