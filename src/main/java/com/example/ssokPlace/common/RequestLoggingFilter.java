@@ -1,4 +1,4 @@
-package com.example.ssokplace.common;
+package com.example.ssokPlace.common;
 
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;

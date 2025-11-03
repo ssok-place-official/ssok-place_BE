@@ -1,5 +1,6 @@
 package com.example.ssokPlace.friend.dto;
 
+import com.example.ssokPlace.friend.entity.FriendshipStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,16 +13,15 @@ public class FriendDTO {
     private String handle;
     private String nickname;
     private String avatar;
-    private String status; // PENDING | ACCEPTED | BLOCKED
+    private FriendshipStatus status;
 
-
-    public FriendDTO(Long userId, String nickname, String status) {
+    public FriendDTO(Long userId, String nickname, FriendshipStatus status) {
         this.userId = userId;
         this.nickname = nickname;
         this.status = status;
     }
 
-    public FriendDTO(Integer userId, String nickname, String status) {
+    public FriendDTO(Integer userId, String nickname, FriendshipStatus status) {
         this.userId = (userId != null) ? userId.longValue() : null;
         this.nickname = nickname;
         this.status = status;
