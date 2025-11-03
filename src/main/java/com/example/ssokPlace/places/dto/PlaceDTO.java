@@ -27,5 +27,6 @@ public class PlaceDTO {
     private Instant createdAt;
 
     private InsightDTO insight;
+    private String coverUrl;
 
 }

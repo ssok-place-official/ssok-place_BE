@@ -79,6 +79,7 @@ public class AppointmentService {
 
         return new CreateAppointmentResponse(
                 appt.getPublicId(), // Long
+                appt.getPlaceId(),
                 appt.getStatus(),
                 membersDto
         );
