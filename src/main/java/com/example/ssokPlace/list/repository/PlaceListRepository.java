@@ -18,7 +18,7 @@ public interface PlaceListRepository extends JpaRepository<PlaceList, Long> {
                 l.id, l.name, l.emoji, count(plp.id), l.updatedAt
             )
             from PlaceList l
-            left join l.places plp   -- place_list_place 링크 기준으로 카운트
+            left join l.places plp
             group by l.id, l.name, l.emoji, l.updatedAt
             order by l.updatedAt desc
         """,
