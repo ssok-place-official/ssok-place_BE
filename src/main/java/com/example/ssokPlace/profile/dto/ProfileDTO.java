@@ -21,7 +21,6 @@ public class ProfileDTO {
     public static class UserInfo {
         private Long id;
         private String nickname;
-        private String avatarUrl;
     }
 
     @Data

@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.OffsetDateTime;
+
 @Entity
 @Table(name = "user_places", uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "place_id"}))
 @Getter
@@ -28,4 +30,41 @@ public class UserPlace {
 
     @Column(columnDefinition = "json")
     private String tags;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    @Builder.Default
+    private Visibility visibility = Visibility.PRIVATE;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private OffsetDateTime createdAt = OffsetDateTime.now();
+
+    @Column(nullable = false)
+    @Builder.Default
+    private OffsetDateTime updatedAt = OffsetDateTime.now();
+
+    public enum Visibility {
+        PUBLIC, FRIENDS, PRIVATE
+    }
+
+    public void changeVisibility(Visibility newVisibility) {
+        if (newVisibility == null) {
+            throw new IllegalArgumentException("공개 범위는 null일 수 없습니다.");
+        }
+        this.visibility = newVisibility;
+        this.updatedAt = OffsetDateTime.now();
+    }
+
+    public static UserPlace of(Long userId, Long placeId, String memo, String tags, Visibility vis) {
+        return UserPlace.builder()
+                .userId(userId)
+                .placeId(placeId)
+                .memo(memo)
+                .tags(tags)
+                .visibility(vis != null ? vis : Visibility.PRIVATE)
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build();
+    }
 }
