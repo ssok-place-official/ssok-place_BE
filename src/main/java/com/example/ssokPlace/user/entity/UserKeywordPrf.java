@@ -1,9 +1,8 @@
 package com.example.ssokPlace.user.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -28,14 +27,6 @@ public class UserKeywordPrf {
         this.updatedAt = OffsetDateTime.now();
     }
 
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Id implements Serializable{
-        private Long userId;
-        private String term;
-    }
-
     public static UserKeywordPrf of(Long userId, String term, boolean pinned, boolean hidden){
         var p = new UserKeywordPrf();
         p.userId = userId;
@@ -44,5 +35,18 @@ public class UserKeywordPrf {
         p.hidden = hidden;
         p.updatedAt = OffsetDateTime.now();
         return p;
+    }
+
+    // 복합 키 필요
+    @Embeddable
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Id implements Serializable {
+        @Column(name = "user_id", nullable = false)
+        private Long userId;
+
+        @Column(name = "term", length = 100, nullable = false)
+        private String term;
     }
 }
