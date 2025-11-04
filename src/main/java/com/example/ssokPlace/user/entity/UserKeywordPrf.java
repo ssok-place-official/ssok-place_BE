@@ -7,46 +7,37 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.time.OffsetDateTime;
 
 @Entity
-@Getter
-@NoArgsConstructor
 @Table(name = "user_keyword_prefs")
+@IdClass(UserKeywordPrf.PK.class)
+@Getter @NoArgsConstructor
 public class UserKeywordPrf {
-    @jakarta.persistence.Id
-    private Long userId;
-    private String term;
+
+    @Id private Long userId;
+    @Id private String term;
+
     private boolean pinned;
     private boolean hidden;
-    private OffsetDateTime updatedAt;
+
+    @Getter @NoArgsConstructor @AllArgsConstructor
+    public static class PK implements Serializable {
+        private Long userId;
+        private String term;
+    }
+
+    public static UserKeywordPrf of(Long userId, String term, boolean pinned, boolean hidden) {
+        UserKeywordPrf e = new UserKeywordPrf();
+        e.userId = userId;
+        e.term   = term;
+        e.pinned = pinned;
+        e.hidden = hidden;
+        return e;
+    }
 
     public void apply(boolean pinned, boolean hidden){
         this.pinned = pinned;
         this.hidden = hidden;
-        this.updatedAt = OffsetDateTime.now();
-    }
-
-    public static UserKeywordPrf of(Long userId, String term, boolean pinned, boolean hidden){
-        var p = new UserKeywordPrf();
-        p.userId = userId;
-        p.term = term;
-        p.pinned = pinned;
-        p.hidden = hidden;
-        p.updatedAt = OffsetDateTime.now();
-        return p;
-    }
-
-    // 복합 키 필요
-    @Embeddable
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Id implements Serializable {
-        @Column(name = "user_id", nullable = false)
-        private Long userId;
-
-        @Column(name = "term", length = 100, nullable = false)
-        private String term;
     }
 }
+
