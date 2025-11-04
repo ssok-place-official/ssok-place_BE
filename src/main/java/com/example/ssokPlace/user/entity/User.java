@@ -50,8 +50,15 @@ public class User implements UserDetails {
 
     public enum ProfileVisibility { PUBLIC, FRIENDS, PRIVATE }
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "profile_visibility", nullable = false, length = 16)
-    private ProfileVisibility profileVisibility = ProfileVisibility.PUBLIC;
-    public ProfileVisibility getProfileVisibility() { return profileVisibility; }
+    private ProfileVisibility profileVisibility = ProfileVisibility.FRIENDS; // ← 원하는 기본값
+
+    @PrePersist
+    void prePersist() {
+        if (profileVisibility == null) {
+            profileVisibility = ProfileVisibility.FRIENDS;
+        }
+    }
 }
