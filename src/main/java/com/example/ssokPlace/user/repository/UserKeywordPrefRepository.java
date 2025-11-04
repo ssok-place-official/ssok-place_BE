@@ -4,9 +4,9 @@ import com.example.ssokPlace.user.entity.UserKeywordPrf;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
-public interface UserKeywordPrefRepository extends JpaRepository<UserKeywordPrf, UserKeywordPrf.Id> {
+public interface UserKeywordPrefRepository extends JpaRepository<UserKeywordPrf, UserKeywordPrf.PK> {
     List<UserKeywordPrf> findByUserId(Long userId);
-
-    List<UserKeywordPrf> findByIdUserId(Long userId);
+    Optional<UserKeywordPrf> findByUserIdAndTerm(Long userId, String term);
 }
