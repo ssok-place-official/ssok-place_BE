@@ -10,9 +10,6 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 public interface PlaceVisitRepository extends JpaRepository<PlaceVisit, Long> {
-    /**
-     * 최근 lookbackDays 동안 가장 자주 방문한 장소 Top-N
-     */
     @Query("""
         select v.placeId, count(v) as visitCount, max(v.visitedAt) as lastVisit
         from PlaceVisit v
@@ -26,9 +23,6 @@ public interface PlaceVisitRepository extends JpaRepository<PlaceVisit, Long> {
             Pageable pageable
     );
 
-    /**
-     * 최근 lookbackDays 동안 방문하지 않은 장소 (UserPlace 기준)
-     */
     @Query("""
         select up.placeId
         from UserPlace up
