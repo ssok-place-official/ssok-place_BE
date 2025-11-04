@@ -20,9 +20,9 @@ public class PlaceInsight {
 
     @OneToOne(optional = false)
     @JoinColumn(name = "place_id", referencedColumnName = "id")
-    private Place place;    // ← 일대일 대상은 엔티티
+    private Place place;
 
-    @Column(length = 8)     // 또는 생략
+    @Column(length = 8)
     private String emoji;
 
     @Column(columnDefinition = "json")
