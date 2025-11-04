@@ -62,7 +62,7 @@ public class PlaceController {
         return CommonResponse.ok(data, "업데이트 성공");
     }
 
-    @PatchMapping("/{placeId}")
+    @PatchMapping("/{placeId}/visibility")
     public CommonResponse<Map<String, Object>> updateVisibility(
             @RequestParam String myEmail,
             @PathVariable Long placeId,
