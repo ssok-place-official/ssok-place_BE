@@ -41,10 +41,6 @@ public class ProfileService {
     private final UserKeywordPrefRepository userKeywordPrefRepository;
     private final UserKeywordRepository userKeywordRepository;
     private final PlaceMetaRepository placeMetaRepository;
-
-    // ------------------------------------------------------------
-    // 1) 내 활동: frequent / dormant
-    // ------------------------------------------------------------
     @Transactional(readOnly = true)
     public ActivityDTO getMyActivity(String myEmail, int lookbackDays) {
         User me = userRepository.findByEmail(myEmail)
@@ -95,16 +91,13 @@ public class ProfileService {
         return new ActivityDTO(frequent, dormant);
     }
 
-    // ------------------------------------------------------------
-    // 2) 내 키워드 조회
-    // ------------------------------------------------------------
     @Transactional(readOnly = true)
     public KeywordDTO getMyKeywords(String myEmail) {
         User me = userRepository.findByEmail(myEmail)
                 .orElseThrow(() -> new ReportableError(HttpStatus.NOT_FOUND, "유저 정보를 찾을 수 없습니다."));
 
-        var weights = userKeywordRepository.findTop10ByIdUserIdOrderByWeightDesc(me.getId());
-        var prefs = userKeywordPrefRepository.findByIdUserId(me.getId()).stream()
+        var weights = userKeywordRepository.findTop10ByUserIdOrderByWeightDesc(me.getId());
+        var prefs = userKeywordPrefRepository.findByUserId(me.getId()).stream()
                 .collect(Collectors.toMap(UserKeywordPrf::getTerm, p -> p));
 
         var items = new ArrayList<KeywordDTO.KeywordItem>();
@@ -119,10 +112,6 @@ public class ProfileService {
         }
         return new KeywordDTO(items);
     }
-
-    // ------------------------------------------------------------
-    // 3) 내 키워드 설정 업데이트
-    // ------------------------------------------------------------
     @Transactional
     public void updateMyKeywords(String myEmail, KeywordUpdateRequest req) {
         User me = userRepository.findByEmail(myEmail)
@@ -131,7 +120,6 @@ public class ProfileService {
             throw new ReportableError(HttpStatus.BAD_REQUEST, "요청 데이터가 없습니다.");
         }
 
-        // null-safe
         var pin    = Optional.ofNullable(req.getPin()).orElse(List.of());
         var unpin  = Optional.ofNullable(req.getUnpin()).orElse(List.of());
         var hide   = Optional.ofNullable(req.getHide()).orElse(List.of());
@@ -144,22 +132,20 @@ public class ProfileService {
     }
 
     private void upsertPref(Long userId, String term, Boolean pinned, Boolean hidden) {
-        var id = new UserKeywordPrf.Id(userId, term);
-        var pref = userKeywordPrefRepository.findById(id).orElse(null);
-        if (pref == null) {
-            pref = UserKeywordPrf.of(userId, term,
-                    pinned != null && pinned,
-                    hidden != null && hidden);
-        } else {
+        var prefOpt = userKeywordPrefRepository.findByUserIdAndTerm(userId, term);
+        UserKeywordPrf pref = prefOpt.orElseGet(() ->
+                UserKeywordPrf.of(userId, term,
+                        pinned != null && pinned,
+                        hidden != null && hidden)
+        );
+
+        if (prefOpt.isPresent()) {
             pref.apply(pinned != null ? pinned : pref.isPinned(),
                     hidden != null ? hidden : pref.isHidden());
         }
         userKeywordPrefRepository.save(pref);
     }
 
-    // ------------------------------------------------------------
-    // 4) 상대 프로필 조회
-    // ------------------------------------------------------------
     @Transactional(readOnly = true)
     public ProfileDTO getUserProfile(String myEmail, Long userId) {
         User me = userRepository.findByEmail(myEmail)
@@ -179,9 +165,8 @@ public class ProfileService {
 
         long savedPlaces = userPlaceRepository.countByUserId(target.getId());
 
-        // 키워드 공개: 상위 10개, hidden 제외
-        var weights = userKeywordRepository.findTop10ByIdUserIdOrderByWeightDesc(target.getId());
-        var prefs = userKeywordPrefRepository.findByIdUserId(target.getId()).stream()
+        var weights = userKeywordRepository.findTop10ByUserIdOrderByWeightDesc(target.getId());
+        var prefs = userKeywordPrefRepository.findByUserId(target.getId()).stream()
                 .collect(Collectors.toMap(UserKeywordPrf::getTerm, p -> p));
 
         var keywords = new ArrayList<ProfileDTO.KeywordInfo>();
@@ -198,7 +183,6 @@ public class ProfileService {
         );
     }
 
-    // 5) 상대 공개 장소 조회 (메타 채움)
     @Transactional(readOnly = true)
     public PageDTO<ProfilePlaceDTO> getUserPlaces(String myEmail, Long userId, int page, int size) {
         User me = userRepository.findByEmail(myEmail)
@@ -229,9 +213,6 @@ public class ProfileService {
         return PageDTO.of(mapped);
     }
 
-    // ------------------------------------------------------------
-    // 6) 내 장소 공개 범위 변경
-    // ------------------------------------------------------------
     @Transactional
     public UserPlace.Visibility updateVisibility(String myEmail, Long placeId, String newVisibility) {
         User me = userRepository.findByEmail(myEmail)

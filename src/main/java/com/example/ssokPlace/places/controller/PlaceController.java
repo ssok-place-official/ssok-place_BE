@@ -30,7 +30,6 @@ public class PlaceController {
         return CommonResponse.created(data, "장소가 저장되었습니다.");
     }
 
-    // 상세 + 인사이트 옵션
     @GetMapping("/{placeId}")
     public CommonResponse<PlaceDTO> detail(
             @AuthenticationPrincipal UserDetails principal,
@@ -41,7 +40,6 @@ public class PlaceController {
         return CommonResponse.ok(data, "장소 상세 정보 조회 성공");
     }
 
-    // 지도 중심 근처 저장 / 후보 조회
     @GetMapping("/nearby")
     public CommonResponse<PageDTO<PlacePinDTO>> nearby(
             @AuthenticationPrincipal UserDetails principal,
@@ -51,7 +49,6 @@ public class PlaceController {
         return CommonResponse.ok(data, "근처 장소 조회 성공");
     }
 
-    // 메모 / 태그 / 상태 수정
     @PatchMapping("/{placeId}")
     public CommonResponse<Object> patch(
             @AuthenticationPrincipal UserDetails principal,
