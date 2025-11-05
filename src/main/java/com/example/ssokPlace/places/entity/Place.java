@@ -33,8 +33,8 @@ public class Place {
     private String externalRefs;
 
     @JdbcTypeCode(SqlTypes.GEOMETRY)
-    @Column(name = "ego", columnDefinition = "POINT SRID 4326 NOT NULL", nullable = false)
-    private Point ego;
+    @Column(name = "geo", columnDefinition = "POINT SRID 4326 NOT NULL", nullable = false)
+    private Point geo;
 
     @Column(name = "cover_url")
     private String coverUrl;

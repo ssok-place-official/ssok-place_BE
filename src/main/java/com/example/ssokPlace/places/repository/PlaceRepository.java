@@ -20,7 +20,7 @@ public interface PlaceRepository extends JpaRepository<Place, Long>, PlaceReposi
     @Query(value = """
         SELECT COUNT(*)
         FROM place p
-        WHERE ST_Distance_Sphere(p.ego, ST_SRID(POINT(:lng,:lat),4326)) <= :radiusM
+        WHERE ST_Distance_Sphere(p.geo, ST_SRID(POINT(:lng,:lat),4326)) <= :radiusM
     """, nativeQuery = true)
     long countNearby(@Param("lat") double lat,
                      @Param("lng") double lng,
