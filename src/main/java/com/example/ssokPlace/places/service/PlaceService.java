@@ -88,7 +88,7 @@ public class PlaceService {
                     .lat(req.getLat())
                     .lng(req.getLng())
                     .externalRefs(refs.isEmpty()? null : writeJson(refs))
-                    .ego(pt) // ✅ 필수: ego 세팅
+                    .geo(pt)
                     .build();
 
             place = placeRepository.save(place);

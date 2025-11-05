@@ -22,11 +22,11 @@ class PlaceRepositoryImpl implements PlaceRepositoryCustom {
 
         // includeClosed 필터가 필요하면 여기에 조건만 추가
         String baseWhere = """
-            ST_Distance_Sphere(p.ego, ST_SRID(POINT(?1, ?2), 4326)) <= ?3
+            ST_Distance_Sphere(p.geo, ST_SRID(POINT(?1, ?2), 4326)) <= ?3
         """;
 
         String sql = """
-            SELECT p.*, ST_Distance_Sphere(p.ego, ST_SRID(POINT(?1, ?2), 4326)) AS dist
+            SELECT p.*, ST_Distance_Sphere(p.geo, ST_SRID(POINT(?1, ?2), 4326)) AS dist
             FROM place p
             WHERE """ + baseWhere + """
             ORDER BY dist ASC
