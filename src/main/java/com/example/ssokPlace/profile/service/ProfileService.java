@@ -155,13 +155,15 @@ public class ProfileService {
 
         boolean isFriend = friendRepository.existsFriendship(me.getId(), target.getId());
 
-        var visibility = target.getProfileVisibility(); // enum 필드 존재
+        var visibility = target.getProfileVisibility();
         boolean forbidden = switch (visibility) {
             case PUBLIC   -> false;
             case FRIENDS  -> !isFriend;
             case PRIVATE  -> !Objects.equals(me.getId(), target.getId());
         };
-        if (forbidden) throw new ReportableError(HttpStatus.FORBIDDEN, "장소 공개 범위로 인해 접근 불가합니다.");
+        if (forbidden) {
+            throw new ReportableError(HttpStatus.FORBIDDEN, "프로필 공개 범위로 인해 접근 불가합니다.");
+        }
 
         long savedPlaces = userPlaceRepository.countByUserId(target.getId());
 
@@ -172,7 +174,7 @@ public class ProfileService {
         var keywords = new ArrayList<ProfileDTO.KeywordInfo>();
         for (UserKeyword w : weights) {
             var pref = prefs.get(w.getTerm());
-            if (pref != null && pref.isHidden()) continue; // 공개 차단
+            if (pref != null && pref.isHidden()) continue;
             keywords.add(new ProfileDTO.KeywordInfo(w.getTerm(), w.getWeight()));
         }
 
@@ -182,6 +184,7 @@ public class ProfileService {
                 new ProfileDTO.Stats((int) savedPlaces)
         );
     }
+
 
     @Transactional(readOnly = true)
     public PageDTO<ProfilePlaceDTO> getUserPlaces(String myEmail, Long userId, int page, int size) {
