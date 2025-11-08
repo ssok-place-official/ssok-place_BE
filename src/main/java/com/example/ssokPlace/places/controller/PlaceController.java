@@ -22,13 +22,14 @@ public class PlaceController {
     private final ProfileService profileService;
 
     @PostMapping
-    public CommonResponse<PlaceDTO> create(
+    public CommonResponse<PlaceDTO> saveMyPlace(
             @AuthenticationPrincipal UserDetails principal,
-            @RequestBody@Valid PlaceCreateReq req
-            ) {
-        var data = placeService.createOrAttach(principal.getUsername(), req);
+            @RequestBody @Valid PlaceCreateReq req
+    ) {
+        var data = placeService.saveUserPlace(principal.getUsername(), req);
         return CommonResponse.created(data, "장소가 저장되었습니다.");
     }
+
 
     @GetMapping("/{placeId}")
     public CommonResponse<PlaceDTO> detail(
@@ -61,11 +62,11 @@ public class PlaceController {
 
     @PatchMapping("/{placeId}/visibility")
     public CommonResponse<Map<String, Object>> updateVisibility(
-            @RequestParam String myEmail,
+            @AuthenticationPrincipal UserDetails principal,
             @PathVariable Long placeId,
             @RequestBody VisibilityUpdateRequest body
     ) {
-        var vis = profileService.updateVisibility(myEmail, placeId, body.getVisibility());
+        var vis = profileService.updateVisibility(principal.getUsername(), placeId, body.getVisibility());
         return CommonResponse.ok(
                 Map.of("id", placeId, "visibility", vis.name()),
                 "장소 공개 범위가 업데이트되었습니다."

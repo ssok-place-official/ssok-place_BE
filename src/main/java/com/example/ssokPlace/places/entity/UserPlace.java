@@ -67,4 +67,14 @@ public class UserPlace {
                 .updatedAt(OffsetDateTime.now())
                 .build();
     }
+
+    public void applyPatch(String memo, String tagsJson){
+        if(memo!= null){
+            this.memo = memo;
+        }
+        if(tagsJson != null){
+            this.tags = tagsJson;
+        }
+        this.updatedAt = OffsetDateTime.now();
+    }
 }

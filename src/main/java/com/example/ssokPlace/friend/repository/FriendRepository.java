@@ -51,12 +51,16 @@ public interface FriendRepository extends JpaRepository<Friendship, Long> {
 
 
     @Query("""
-      select (count(f) > 0)
-      from Friendship f
-      where (f.userA.id = :id1 and f.userB.id = :id2)
-         or (f.userA.id = :id2 and f.userB.id = :id1)
-    """)
+  select (count(f) > 0)
+  from Friendship f
+  where (
+      (f.userA.id = :id1 and f.userB.id = :id2)
+   or (f.userA.id = :id2 and f.userB.id = :id1)
+  )
+  and f.status = com.example.ssokPlace.friend.entity.FriendshipStatus.ACCEPTED
+""")
     boolean existsFriendship(@Param("id1") Long id1, @Param("id2") Long id2);
+
 
     @Query("""
       select (count(f) > 0)
