@@ -10,9 +10,9 @@ import java.util.Optional;
 public interface PlaceRepository extends JpaRepository<Place, Long>, PlaceRepositoryCustom {
 
     @Query(value = """
-        SELECT * FROM place
+        SELECT * FROM places
         WHERE JSON_UNQUOTE(JSON_EXTRACT(external_refs, '$.naver_place_id')) = :naverPlaceId
-        LIMIT 1
+        LIMIT 1x
     """, nativeQuery = true)
     Optional<Place> findByNaverPlaceId(@Param("naverPlaceId") String naverPlaceId);
 

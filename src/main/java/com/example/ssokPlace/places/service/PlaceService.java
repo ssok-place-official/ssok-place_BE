@@ -48,83 +48,30 @@ public class PlaceService {
                     PackedCoordinateSequenceFactory.DOUBLE_FACTORY);
 
     @Transactional
-    public PlaceDTO createOrAttach(String myEmail, PlaceCreateReq req){
+    public PlaceDTO saveUserPlace(String myEmail, PlaceCreateReq req) {
         User me = userRepository.findByEmail(myEmail)
                 .orElseThrow(() -> new ReportableError(HttpStatus.NOT_FOUND, "유저 정보를 찾을 수 없습니다."));
 
-        // 1) 입력 필수 검증을 먼저!
-        if (req.getName()==null || req.getName().isBlank()
-                || req.getLat()==null || req.getLng()==null) {
-            throw new ReportableError(HttpStatus.BAD_REQUEST, "name, lat, lng는 필수입니다.");
+        if (req.getPlaceId() == null) {
+            throw new ReportableError(HttpStatus.BAD_REQUEST, "placeId는 필수입니다.");
         }
-        if (req.getMemo()==null && (req.getTags()==null || req.getTags().isEmpty())) {
-            throw new ReportableError(HttpStatus.BAD_REQUEST, "변경할 필드가 없습니다.");
+        if (req.getMemo() == null && (req.getTags() == null || req.getTags().isEmpty())) {
+            throw new ReportableError(HttpStatus.BAD_REQUEST, "memo 또는 tags 중 하나는 있어야 합니다.");
         }
 
-        // 2) 네이버 플레이스ID로 먼저 attach 시도
-        Place place = null;
-        if (req.getNaverPlaceId()!=null && !req.getNaverPlaceId().isBlank()){
-            place = placeRepository.findByNaverPlaceId(req.getNaverPlaceId()).orElse(null);
-        }
+        // 1) Place 존재 여부 확인
+        Place place = placeRepository.findById(req.getPlaceId())
+                .orElseThrow(() -> new ReportableError(HttpStatus.NOT_FOUND, "해당 Place가 존재하지 않습니다."));
 
-        // 3) 좌표 반경 내 중복 체크 (필수값 검증 후!)
-        final int RADIUS_METERS = 10;
-        if (place == null && placeRepository.countNearby(req.getLat(), req.getLng(), RADIUS_METERS) > 0L) {
-            throw new ReportableError(HttpStatus.CONFLICT, "이미 등록된 장소가 있습니다.");
-        }
+        // 2) UserPlace upsert
+        UserPlace up = userPlaceRepository.findByUserIdAndPlaceId(me.getId(), place.getId())
+                .orElseGet(() -> UserPlace.of(me.getId(), place.getId(), null, null, null));
 
-        // 4) 없으면 생성
-        if (place == null) {
-            Map<String, Object> refs = new LinkedHashMap<>();
-            if (req.getNaverPlaceId() != null) refs.put("naver_place_id", req.getNaverPlaceId());
-            if (req.getPlaceUrl() != null) refs.put("place_url", req.getPlaceUrl());
+        String tagsJson = (req.getTags() != null) ? writeJson(req.getTags()) : null;
+        up.applyPatch(req.getMemo(), tagsJson);
+        userPlaceRepository.save(up);
 
-            Point pt = GF.createPoint(new Coordinate(req.getLng(), req.getLat()));
-            pt.setSRID(4326);
-
-            place = Place.builder()
-                    .name(req.getName())
-                    .address(req.getAddress())
-                    .lat(req.getLat())
-                    .lng(req.getLng())
-                    .externalRefs(refs.isEmpty()? null : writeJson(refs))
-                    .geo(pt)
-                    .build();
-
-            place = placeRepository.save(place);
-        }
-
-        Long placeId = place.getId();
-
-        // 5) UserPlace upsert
-        UserPlace up = userPlaceRepository.findByUserIdAndPlaceId(me.getId(), placeId)
-                .orElseGet(() -> UserPlace.builder()
-                        .userId(me.getId())
-                        .placeId(placeId)
-                        .memo(null)
-                        .tags(null)
-                        .build());
-
-        if (req.getMemo()!=null) {
-            up = UserPlace.builder()
-                    .id(up.getId())
-                    .userId(up.getUserId())
-                    .placeId(up.getPlaceId())
-                    .memo(req.getMemo())
-                    .tags(up.getTags())
-                    .build();
-        }
-        if (req.getTags()!=null) {
-            up = UserPlace.builder()
-                    .id(up.getId())
-                    .userId(up.getUserId())
-                    .placeId(up.getPlaceId())
-                    .memo(up.getMemo())
-                    .tags(writeJson(req.getTags()))
-                    .build();
-        }
-        up = userPlaceRepository.save(up);
-
+        // 3) 응답 DTO
         return PlaceDTO.builder()
                 .id(place.getId())
                 .name(place.getName())
@@ -134,10 +81,11 @@ public class PlaceService {
                 .isClosed(false)
                 .memo(up.getMemo())
                 .tags(readTags(up.getTags()))
-                .createdAt(Instant.now())
+                .createdAt(up.getCreatedAt().toInstant())
                 .coverUrl(place.getCoverUrl())
                 .build();
     }
+
 
 
     @Transactional(readOnly = true)
@@ -226,16 +174,10 @@ public class PlaceService {
         UserPlace up = userPlaceRepository.findByUserIdAndPlaceId(me.getId(), placeId)
                 .orElseThrow(() -> new ReportableError(HttpStatus.NOT_FOUND, "해당 장소를 찾을 수 없습니다."));
 
-        String newMemo = req.getMemo() != null ? req.getMemo() : up.getMemo();
-        String newTags = req.getTags() != null ? writeJson(req.getTags()) : up.getTags();
+        String memo = req.getMemo();
+        String tagsJson = (req.getTags() != null) ? writeJson(req.getTags()) : null;
 
-        up = UserPlace.builder()
-                .id(up.getId())
-                .userId(up.getUserId())
-                .placeId(up.getPlaceId())
-                .memo(newMemo)
-                .tags(newTags)
-                .build();
+        up.applyPatch(memo, tagsJson);
 
         userPlaceRepository.save(up);
 

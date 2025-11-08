@@ -20,14 +20,13 @@ class PlaceRepositoryImpl implements PlaceRepositoryCustom {
     public Page<Place> searchNearby(double centerLat, double centerLng, int radiusM,
                                     boolean includeClosed, Pageable pageable) {
 
-        // includeClosed 필터가 필요하면 여기에 조건만 추가
         String baseWhere = """
             ST_Distance_Sphere(p.geo, ST_SRID(POINT(?1, ?2), 4326)) <= ?3
         """;
 
         String sql = """
             SELECT p.*, ST_Distance_Sphere(p.geo, ST_SRID(POINT(?1, ?2), 4326)) AS dist
-            FROM place p
+            FROM places p
             WHERE """ + baseWhere + """
             ORDER BY dist ASC
             LIMIT ?4 OFFSET ?5
@@ -45,7 +44,7 @@ class PlaceRepositoryImpl implements PlaceRepositoryCustom {
 
         String countSql = """
             SELECT COUNT(*)
-            FROM place p
+            FROM places p
             WHERE """ + baseWhere;
 
         long total = ((Number) em.createNativeQuery(countSql)

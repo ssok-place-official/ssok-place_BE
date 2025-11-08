@@ -13,15 +13,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PlaceCreateReq {
-    private String name;
-    private String address;
-    private String naverPlaceId;
-    private String placeUrl;
-
-    private Double lat;
-    private Double lng;
-
-    @Size(max=2000)
+    private Long placeId;
     private String memo;
-    private List<@Size(max=20) String> tags;
+    private List<String> tags;
 }
