@@ -40,20 +40,36 @@ public class Appointment {
     @Column(name = "status", nullable = false)
     private AppointmentsStatus status;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", nullable = false)
+    private User createdBy;
+
+
     @OneToMany(mappedBy = "appointment", cascade = CascadeType.ALL, orphanRemoval = true)
     private final List<AppointmentMember> members = new ArrayList<>();
 
-    private Appointment(Long publicId, String title, String note, Long placeId, Instant startAt, AppointmentsStatus status) {
+    private Appointment(Long publicId,
+                        String title,
+                        String note,
+                        Long placeId,
+                        Instant startAt,
+                        User createdBy) {
         this.publicId = publicId;
         this.title = title;
         this.note = note;
+        this.placeId = placeId;
         this.startAt = startAt;
-        this.status = status;
         this.status = AppointmentsStatus.PROPOSED;
+        this.createdBy = createdBy;
     }
 
-    public static Appointment create(Long publicId, String title, String note, Long placeId, Instant startAt, User host) {
-        var appt = new Appointment(publicId, title, note, placeId, startAt, AppointmentsStatus.PROPOSED);
+    public static Appointment create(Long publicId,
+                                     String title,
+                                     String note,
+                                     Long placeId,
+                                     Instant startAt,
+                                     User host) {
+        var appt = new Appointment(publicId, title, note, placeId, startAt, host);
         appt.addMember(host, MemberRole.HOST, RsvpStatus.ACCEPTED);
         return appt;
     }
