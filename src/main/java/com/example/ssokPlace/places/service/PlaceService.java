@@ -123,6 +123,25 @@ public class PlaceService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public List<PlaceDTO> getAllPlaces() {
+        List<Place> places = placeRepository.findAll();
+
+        return places.stream()
+                .map(p -> PlaceDTO.builder()
+                        .id(p.getId())
+                        .name(p.getName())
+                        .address(p.getAddress())
+                        .lat(p.getLat())
+                        .lng(p.getLng())
+                        .coverUrl(p.getCoverUrl())
+                        .isClosed(false)
+                        .build()
+                )
+                .toList();
+    }
+
+
 
     @Transactional(readOnly = true)
     public PageDTO<PlacePinDTO> nearby(String email, NearbyQuery q){

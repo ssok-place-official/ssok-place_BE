@@ -11,6 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -58,6 +59,11 @@ public class PlaceController {
             ) {
         var data = placeService.updateUserPlace(principal.getUsername(), placeId, req);
         return CommonResponse.ok(data, "업데이트 성공");
+    }
+
+    @GetMapping("/all")
+    public List<PlaceDTO> getAllPlaces() {
+        return placeService.getAllPlaces();
     }
 
     @PatchMapping("/{placeId}/visibility")
